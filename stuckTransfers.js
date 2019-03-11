@@ -2,11 +2,13 @@ require('dotenv').config()
 const Web3 = require('web3')
 const logger = require('./logger')('stuckTransfers.js')
 
-const { FOREIGN_RPC_URL, FOREIGN_BRIDGE_ADDRESS, ERC20_ADDRESS } = process.env
+const { FOREIGN_RPC_URL, FOREIGN_BRIDGE_ADDRESS } = process.env
 const FOREIGN_DEPLOYMENT_BLOCK = Number(process.env.FOREIGN_DEPLOYMENT_BLOCK) || 0
 
 const foreignProvider = new Web3.providers.HttpProvider(FOREIGN_RPC_URL)
 const web3Foreign = new Web3(foreignProvider)
+
+const FOREIGN_ERC_TO_NATIVE_ABI = require('./abis/ForeignBridgeErcToNative.abi')
 
 const ABITransferWithoutData = [
   {
@@ -75,9 +77,11 @@ function compareTransfers(transfersNormal) {
 
 async function main() {
   try {
-    // TODO: ERC20_ADDRESS is no longer an env constant. It has to be extracted from the ForeignBridge Contract.
-    const tokenContract = new web3Foreign.eth.Contract(ABITransferWithoutData, ERC20_ADDRESS)
-    const tokenContractWithData = new web3Foreign.eth.Contract(ABIWithData, ERC20_ADDRESS)
+    const foreignBridge = new web3Foreign.eth.Contract(FOREIGN_ERC_TO_NATIVE_ABI, FOREIGN_BRIDGE_ADDRESS)
+    const erc20Address = await foreignBridge.methods.erc20token().call()
+    const tokenContract = new web3Foreign.eth.Contract(ABITransferWithoutData, erc20Address)
+    const tokenContractWithData = new web3Foreign.eth.Contract(ABIWithData, erc20Address)
+
     logger.debug('calling tokenContract.getPastEvents Transfer')
     const transfersNormal = await tokenContract.getPastEvents('Transfer', {
       filter: {
